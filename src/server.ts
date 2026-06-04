@@ -22,6 +22,7 @@ import { GHLApiClient } from './clients/ghl-api-client.js';
 import { ToolRegistry } from './tool-registry.js';
 import { MCPAppsManager } from './apps/index.js';
 import { GHLConfig } from './types/ghl-types.js';
+import { CredentialManager } from './auth/credential-manager.js';
 
 // Load environment variables
 dotenv.config();
@@ -64,30 +65,49 @@ class GHLMCPServer {
   }
 
   /**
-   * Initialize GoHighLevel API client with configuration
+   * Initialize GoHighLevel API client with configuration.
+   * Credential priority: GHL_API_KEY env var → stored OAuth tokens (.ghl-tokens.json)
    */
   private initializeGHLClient(): GHLApiClient {
+    // Use CredentialManager so we respect stored OAuth tokens as a fallback
+    const credManager = new CredentialManager(
+      process.env.GHL_CLIENT_ID || '',
+      process.env.GHL_CLIENT_SECRET || '',
+      process.env.GHL_REDIRECT_URI || 'http://localhost:8000/auth/callback',
+    );
+    const hasCredentials = credManager.initialize();
+
+    if (!hasCredentials) {
+      throw new Error(
+        'No credentials found.\n' +
+        '  Option A: Set GHL_API_KEY and GHL_LOCATION_ID in your environment.\n' +
+        '  Option B: Run the HTTP server (npm start) and visit http://localhost:8000/auth to connect via OAuth.'
+      );
+    }
+
+    const locationId = credManager.getLocationId();
+    if (!locationId) {
+      throw new Error(
+        'No location ID found. Set GHL_LOCATION_ID in your environment, ' +
+        'or re-authenticate via the HTTP server (/auth) to select a sub-account.'
+      );
+    }
+
+    // For stdio, we use the stored access token synchronously at startup.
+    // Auto-refresh is provided via the async getToken callback so long-running
+    // stdio processes will keep working past the 24-hour access token expiry.
     const config: GHLConfig = {
       accessToken: process.env.GHL_API_KEY || '',
       baseUrl: process.env.GHL_BASE_URL || 'https://services.leadconnectorhq.com',
       version: '2021-07-28',
-      locationId: process.env.GHL_LOCATION_ID || ''
+      locationId,
     };
-
-    if (!config.accessToken) {
-      throw new Error('GHL_API_KEY environment variable is required');
-    }
-
-    if (!config.locationId) {
-      throw new Error('GHL_LOCATION_ID environment variable is required');
-    }
 
     process.stderr.write('[GHL MCP] Initializing GHL API client...\n');
     process.stderr.write(`[GHL MCP] Base URL: ${config.baseUrl}\n`);
-    process.stderr.write(`[GHL MCP] Version: ${config.version}\n`);
     process.stderr.write(`[GHL MCP] Location ID: ${config.locationId}\n`);
 
-    return new GHLApiClient(config);
+    return new GHLApiClient(config, () => credManager.getAccessToken());
   }
 
   /**

@@ -11,6 +11,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# OAuth token store (contains live GHL access + refresh tokens)
+.ghl-tokens.json
+
 # MCP Configuration with credentials
 cursor-mcp-config.json
 

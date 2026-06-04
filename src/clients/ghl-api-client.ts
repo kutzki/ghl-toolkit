@@ -391,9 +391,9 @@ export class GHLApiClient {
   private axiosInstance: AxiosInstance;
   private config: GHLConfig;
 
-  constructor(config: GHLConfig) {
+  constructor(config: GHLConfig, getToken?: () => Promise<string>) {
     this.config = config;
-    
+
     // Create axios instance with base configuration
     this.axiosInstance = axios.create({
       baseURL: config.baseUrl,
@@ -405,6 +405,15 @@ export class GHLApiClient {
       },
       timeout: 30000 // 30 second timeout
     });
+
+    // Dynamic token refresh: update Authorization header before each request
+    if (getToken) {
+      this.axiosInstance.interceptors.request.use(async (reqConfig) => {
+        const token = await getToken();
+        reqConfig.headers.Authorization = `Bearer ${token}`;
+        return reqConfig;
+      });
+    }
 
     // Add request interceptor for logging
     this.axiosInstance.interceptors.request.use(

@@ -107,8 +107,8 @@ export class EnhancedGHLClient extends GHLApiClient {
   private rateLimit: RateLimitState = { remaining: Infinity, limit: Infinity, resetAt: 0 };
   private enhancedAxios: AxiosInstance;
 
-  constructor(config: GHLConfig) {
-    super(config);
+  constructor(config: GHLConfig, getToken?: () => Promise<string>) {
+    super(config, getToken);
 
     // Create enhanced axios instance with connection pooling
     const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 10, keepAliveMsecs: 30_000 });
@@ -126,6 +126,15 @@ export class EnhancedGHLClient extends GHLApiClient {
       httpAgent,
       httpsAgent,
     });
+
+    // Dynamic token refresh for the enhanced axios instance
+    if (getToken) {
+      this.enhancedAxios.interceptors.request.use(async (reqConfig) => {
+        const token = await getToken();
+        reqConfig.headers.Authorization = `Bearer ${token}`;
+        return reqConfig;
+      });
+    }
 
     // Track rate limit headers
     this.enhancedAxios.interceptors.response.use(
