@@ -2,7 +2,11 @@
 
 > **The All-In-One GoHighLevel MCP Server** — plug into any AI CLI or desktop app via the Model Context Protocol.
 
-This server gives any compatible AI agent direct, natural-language access to your entire GoHighLevel CRM — contacts, pipelines, calendars, invoices, voice AI, social media, and 500+ more tools. Works out of the box with **Claude Desktop**, **ChatGPT Codex CLI**, and **Google Gemini CLI (Antigravity)**.
+This server gives any compatible AI agent direct, natural-language access to your entire GoHighLevel CRM — contacts, pipelines, calendars, invoices, voice AI, social media, and 500+ tools across 45 categories. Works out of the box with **Claude Desktop**, **ChatGPT Codex CLI**, and **Google Gemini CLI (Antigravity)**.
+
+**Authentication options:**
+- **Private Integration Token** (simplest) — generate in GHL Settings → Integrations → Private Integrations
+- **OAuth 2.0** (browser login) — start the HTTP server and visit `/auth` to connect via your GHL account
 
 ---
 
@@ -29,7 +33,11 @@ cd ghl-toolkit
 npm install
 ```
 
+> **Note:** The build step also installs dependencies for the React dashboard sub-package automatically.
+
 ### 2. Set Up Your GHL Credentials
+
+**Option A — Private Integration Token (simplest):**
 
 ```bash
 cp .env.example .env
@@ -48,6 +56,17 @@ GHL_BASE_URL=https://services.leadconnectorhq.com
 > 2. Go to **Settings → Integrations → Private Integrations**
 > 3. Create a new integration, select all required scopes, and copy the generated API key
 > 4. Copy your **Location ID** from Settings → Company → Locations
+
+**Option B — OAuth 2.0 (browser login, works for agency + sub-accounts):**
+
+```bash
+cp .env.example .env
+# Fill in GHL_CLIENT_ID and GHL_CLIENT_SECRET from your Marketplace App
+npm run build && npm start
+# Then open http://localhost:8000/auth in your browser
+```
+
+Your tokens are saved automatically to `.ghl-tokens.json` (gitignored). The server refreshes them before expiry — no re-login required.
 
 ### 3. Build
 
@@ -102,7 +121,7 @@ When creating your Private Integration in GHL, enable the following scopes:
 
 ---
 
-## 🛠️ What You Can Do (520+ Tools)
+## 🛠️ What You Can Do (500+ Tools, 45 Categories)
 
 ### Natural Language Examples
 
@@ -156,19 +175,25 @@ When creating your Private Integration in GHL, enable the following scopes:
 ```
 ghl-toolkit/
 ├── src/
-│   ├── tools/               # All 520+ GHL tool implementations
+│   ├── tools/               # 500+ GHL tool implementations (45 categories)
 │   │   ├── contact-tools.ts
 │   │   ├── conversation-tools.ts
 │   │   ├── calendar-tools.ts
 │   │   ├── opportunity-tools.ts
 │   │   ├── invoice-tools.ts
-│   │   └── ... (40 categories)
+│   │   └── ...
+│   ├── auth/
+│   │   ├── credential-manager.ts  # Auth priority: API key → OAuth tokens
+│   │   ├── oauth.ts               # GHL OAuth 2.0 helpers
+│   │   └── token-store.ts         # Secure token persistence (.ghl-tokens.json)
 │   ├── clients/
-│   │   └── ghl-api-client.ts  # Core GHL API client
+│   │   └── ghl-api-client.ts      # Core GHL API client
+│   ├── enhanced-ghl-client.ts     # Connection pooling, TTL cache, retry
+│   ├── tool-registry.ts           # Auto-discovers and routes all tool modules
 │   ├── types/
-│   │   └── ghl-types.ts       # TypeScript definitions
-│   ├── server.ts              # stdio MCP server (desktop apps)
-│   └── http-server.ts         # HTTP/SSE MCP server (cloud/remote)
+│   │   └── ghl-types.ts           # TypeScript definitions
+│   ├── server.ts                  # stdio MCP server (desktop apps)
+│   └── main.ts                    # HTTP MCP server + OAuth routes
 ├── integrations/
 │   ├── claude-desktop/
 │   │   └── claude_desktop_config.json
@@ -176,7 +201,6 @@ ghl-toolkit/
 │   │   └── codex-mcp.json
 │   └── gemini-cli/
 │       └── settings.json
-├── tests/
 ├── .env.example
 ├── package.json
 ├── tsconfig.json
@@ -188,14 +212,36 @@ ghl-toolkit/
 ## 🧪 Development Scripts
 
 ```bash
-npm run build          # Compile TypeScript
+npm run build          # Build React UI + compile TypeScript
 npm run dev            # Dev server with hot reload
-npm start              # Production HTTP server
+npm start              # Production HTTP server (with OAuth /auth routes)
 npm run start:stdio    # stdio server for desktop apps
-npm run start:http     # HTTP server for remote/cloud usage
+npm run start:http     # Alias for npm start
 npm test               # Run tests
 npm run test:coverage  # Coverage report
 ```
+
+---
+
+## 🔧 Troubleshooting
+
+**Build fails with `Cannot find module` or Vite errors:**
+```bash
+# Install the React sub-package dependencies first
+cd src/ui/react-app && npm install && cd ../..
+npm run build
+```
+
+**`No credentials found` error on startup:**
+- Option A: ensure `GHL_API_KEY` and `GHL_LOCATION_ID` are set in your `.env`
+- Option B: run `npm start` and visit `http://localhost:8000/auth` to connect via OAuth
+
+**`No location ID found` error:**
+- Set `GHL_LOCATION_ID` in your `.env`, or re-authenticate via the HTTP server (`/auth`) and select a sub-account
+
+**Tools not showing in Claude Desktop:**
+- Confirm the `args` path in your config file points to the compiled `dist/server.js` (absolute path)
+- Restart Claude Desktop after editing the config
 
 ---
 

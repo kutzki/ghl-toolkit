@@ -1,7 +1,7 @@
 {
   "name": "aio-ghl-mcp",
   "version": "1.0.0",
-  "description": "All-In-One GoHighLevel MCP Server — 520+ tools, works with Claude Desktop, Codex CLI, and Google Antigravity",
+  "description": "All-In-One GoHighLevel MCP Server — 500+ tools, OAuth 2.0, works with Claude Desktop, Codex CLI, and Google Gemini CLI",
   "main": "dist/main.js",
   "bin": {
     "aio-ghl-mcp": "dist/server.js"
@@ -16,13 +16,12 @@
   },
   "scripts": {
     "setup": "node setup.js",
-    "build:dynamic-ui": "cd src/ui/react-app && npm run build",
-    "build": "npm run build:dynamic-ui && tsc",
+    "build:dynamic-ui": "cd src/ui/react-app && npm ci && npm run build",
+    "build": "(npm run build:dynamic-ui || echo '⚠️  UI build skipped (non-fatal)') && tsc",
     "dev": "nodemon --exec ts-node src/main.ts",
     "start": "node dist/main.js",
     "start:stdio": "node dist/server.js",
     "start:http": "node dist/main.js",
-    "start:legacy": "node dist/http-server.js",
     "vercel-build": "npm run build",
     "prepublishOnly": "npm run build",
     "test": "jest",

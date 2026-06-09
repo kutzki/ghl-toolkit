@@ -56,6 +56,7 @@ import { VoiceAITools } from './tools/voice-ai-tools.js';
 import { ProposalsTools } from './tools/proposals-tools.js';
 import { CustomMenusTools } from './tools/custom-menus-tools.js';
 import { MarketplaceTools } from './tools/marketplace-tools.js';
+import { OAuthTools } from './tools/oauth-tools.js';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -195,6 +196,7 @@ export class ToolRegistry {
     const proposalsTools = new ProposalsTools(ghl);
     const customMenusTools = new CustomMenusTools(ghl);
     const marketplaceTools = new MarketplaceTools(ghl);
+    const oauthTools = new OAuthTools(ghl);
 
     // Register legacy modules (executeTool pattern)
     this.addModule('contact', contactTools, 'getToolDefinitions', 'executeTool');
@@ -243,6 +245,7 @@ export class ToolRegistry {
     this.addModule('proposals', proposalsTools, 'getToolDefinitions', 'handleToolCall');
     this.addModule('customMenus', customMenusTools, 'getToolDefinitions', 'handleToolCall');
     this.addModule('marketplace', marketplaceTools, 'getToolDefinitions', 'handleToolCall');
+    this.addModule('oauth', oauthTools, 'getToolDefinitions', 'handleToolCall');
 
     // Workflow Builder — internal API with Firebase auth (no GHL API client dependency)
     const workflowBuilderTools = new WorkflowBuilderTools();

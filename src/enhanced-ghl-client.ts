@@ -46,15 +46,18 @@ class TTLCache {
       this.misses++;
       return undefined;
     }
+    // LRU: move to end by delete+re-insert
+    this.store.delete(key);
+    this.store.set(key, entry);
     this.hits++;
     return entry.data as T;
   }
 
   set<T>(key: string, data: T, ttlMs?: number): void {
-    // Evict oldest if at capacity
+    // LRU: evict least-recently-used (first in Map = oldest access) if at capacity
     if (this.store.size >= this.maxSize) {
-      const oldest = this.store.keys().next().value;
-      if (oldest !== undefined) this.store.delete(oldest);
+      const lru = this.store.keys().next().value;
+      if (lru !== undefined) this.store.delete(lru);
     }
     this.store.set(key, {
       data,
@@ -163,16 +166,17 @@ export class EnhancedGHLClient extends GHLApiClient {
   }
 
   /**
-   * Enhanced makeRequest with caching and retry
+   * Enhanced makeRequest with caching and retry.
+   * Routes through enhancedAxios (connection pooling + rate-limit tracking).
    */
   async makeRequest<T = any>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     body?: Record<string, unknown>
   ): Promise<GHLApiResponse<T>> {
-    // Cache GET requests
+    // Cache GET requests; include locationId to prevent cross-tenant data leakage
     if (method === 'GET') {
-      const cacheKey = `${method}:${path}`;
+      const cacheKey = `${this.getConfig().locationId}:${method}:${path}`;
       const cached = this.cache.get<GHLApiResponse<T>>(cacheKey);
       if (cached) return cached;
 
@@ -202,6 +206,9 @@ export class EnhancedGHLClient extends GHLApiClient {
     const MAX_RETRIES = 3;
     const BASE_DELAY = 1000;
 
+    // Only safe idempotent methods are retried — never POST/PATCH (may create duplicates)
+    const isRetryable = method === 'GET' || method === 'DELETE' || method === 'PUT';
+
     try {
       // Preemptive rate limit check
       if (this.rateLimit.remaining <= 1 && Date.now() < this.rateLimit.resetAt) {
@@ -211,13 +218,22 @@ export class EnhancedGHLClient extends GHLApiClient {
         }
       }
 
-      // Use parent's makeRequest which has all the proper axios config
-      return await super.makeRequest<T>(method as any, path, body);
+      // Use enhancedAxios (connection pooling + rate-limit header tracking)
+      let response: AxiosResponse;
+      switch (method) {
+        case 'GET':    response = await this.enhancedAxios.get(path); break;
+        case 'POST':   response = await this.enhancedAxios.post(path, body); break;
+        case 'PUT':    response = await this.enhancedAxios.put(path, body); break;
+        case 'PATCH':  response = await this.enhancedAxios.patch(path, body); break;
+        case 'DELETE': response = await this.enhancedAxios.delete(path); break;
+        default: throw new Error(`Unsupported method: ${method}`);
+      }
+      return { success: true, data: response.data as T };
     } catch (err: any) {
       const status = err.response?.status || (err.message?.match(/\((\d+)\)/)?.[1] && parseInt(err.message.match(/\((\d+)\)/)[1]));
 
-      // Retry on 429 (rate limit) and 5xx (server errors)
-      if (attempt < MAX_RETRIES && (status === 429 || (status >= 500 && status < 600))) {
+      // Retry on 429 (rate limit) and 5xx (server errors), but only for idempotent methods
+      if (isRetryable && attempt < MAX_RETRIES && (status === 429 || (status >= 500 && status < 600))) {
         const delay = BASE_DELAY * Math.pow(2, attempt) + Math.random() * 500;
         process.stderr.write(`[GHL] Retry ${attempt + 1}/${MAX_RETRIES} for ${method} ${path} (status ${status}, delay ${Math.round(delay)}ms)\n`);
         await new Promise(r => setTimeout(r, delay));

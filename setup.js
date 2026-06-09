@@ -136,7 +136,11 @@ async function main() {
     try {
       execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
     } catch {
-      console.error('❌ Build failed. Run `npm run build` manually and try again.');
+      console.error('❌ Build failed. Troubleshooting steps:');
+      console.error('   1. Make sure Node.js 18+ is installed: node --version');
+      console.error('   2. Install root deps:  npm install');
+      console.error('   3. Install UI deps:    cd src/ui/react-app && npm install && cd ../..');
+      console.error('   4. Then try again:     npm run build');
       process.exit(1);
     }
   }
