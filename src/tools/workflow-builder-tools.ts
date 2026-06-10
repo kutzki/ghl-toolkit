@@ -1,15 +1,22 @@
 /**
  * GHL Workflow Builder Tools
- * 
- * 7 tools for full workflow CRUD via the hidden internal GHL API.
- * These go beyond the public API (which only lists workflows) to provide:
- * - Create workflows with triggers and actions
- * - Get/list workflows with full action data (workflowData.templates)
- * - Update workflow actions and triggers
- * - Delete, publish, and clone workflows
- * 
- * Auth: Firebase token refresh (browser-free, no CDP needed).
- * See SKILL.md at skills/ghl-workflow-builder/SKILL.md for full schemas.
+ *
+ * ⚠️  EXPERIMENTAL — Uses GHL's private internal web-app API at
+ * backend.leadconnectorhq.com (not the public REST API). This API is
+ * undocumented, unsupported, and may change or break without notice.
+ * Use is likely outside GHL's Terms of Service for third-party apps.
+ *
+ * Why it exists: GHL's public API only LISTS workflows. This module
+ * enables CREATE, UPDATE, DELETE, PUBLISH, and CLONE with full
+ * trigger/action support — capabilities unavailable via the public API.
+ *
+ * Required env vars (not in .env.example by default):
+ *   GHL_REFRESH_TOKEN    — GHL v2 JWT refresh token (preferred)
+ *   GHL_FIREBASE_API_KEY + GHL_FIREBASE_REFRESH_TOKEN — Firebase fallback
+ *   GHL_USER_ID          — GHL user ID
+ *   GHL_COMPANY_ID       — Agency/Company ID
+ *
+ * Auth: Firebase token refresh (browser-free).
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';

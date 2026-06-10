@@ -163,10 +163,15 @@ When creating your Private Integration in GHL, enable the following scopes:
 | Email Marketing | 5 | Campaigns, templates |
 | Custom Objects | 9 | Schema, records, search |
 | Workflows | 8 | Create, publish, clone, delete |
+| Workflow Builder | 7 | ⚠️ Experimental — full CRUD via internal API (see below) |
 | Surveys | 2 | Manage surveys and submissions |
 | Proposals & Documents | 4 | Send proposals and templates |
 | Marketplace | 7 | App installs, billing charges |
 | Custom Menus | 5 | White-label menu management |
+| OAuth / Agency | 2 | Installed locations, location token exchange |
+| Automation & Events | 4 | Webhook URL, event types, contact timeline |
+
+> **⚠️ Workflow Builder tools** use GHL's private internal web-app API (`backend.leadconnectorhq.com`) — not the public REST API. This is undocumented, unsupported, and may violate GHL's Terms of Service for third-party apps. It can break without notice. To use these tools you must supply `GHL_REFRESH_TOKEN` (or Firebase credentials) and `GHL_USER_ID` in your `.env`. All other 490+ tools use only the official public API.
 
 ---
 
