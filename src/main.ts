@@ -16,6 +16,7 @@
 import express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
+import { randomBytes } from 'crypto';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -130,6 +131,41 @@ async function initMcpStack(credentialManager: CredentialManager): Promise<McpSt
   return { mcpServer, mcpTransport, registry, appTools, appsManager, totalTools };
 }
 
+// ─── OAuth CSRF state store ──────────────────────────────────
+// Maps state token → expiry (ms). Short-lived; cleared on use or expiry.
+const pendingOAuthStates = new Map<string, number>();
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function generateOAuthState(): string {
+  const state = randomBytes(16).toString('hex');
+  // Sweep expired states to bound map size
+  const now = Date.now();
+  for (const [s, exp] of pendingOAuthStates) {
+    if (now > exp) pendingOAuthStates.delete(s);
+  }
+  pendingOAuthStates.set(state, now + OAUTH_STATE_TTL_MS);
+  return state;
+}
+
+function consumeOAuthState(state: string | undefined): boolean {
+  if (!state) return false;
+  const expiry = pendingOAuthStates.get(state);
+  if (!expiry || Date.now() > expiry) return false;
+  pendingOAuthStates.delete(state);
+  return true;
+}
+
+// ─── HTML helpers ────────────────────────────────────────────
+
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 // ─── Auth page HTML helpers ──────────────────────────────────
 
 function authPage(title: string, body: string): string {
@@ -210,6 +246,22 @@ async function main() {
   app.use(express.json());
   app.use((req, _res, next) => { log('debug', `${req.method} ${req.path}`); next(); });
 
+  // Optional bearer-token gate for MCP endpoints.
+  // Set MCP_SECRET=<some-token> in .env to require callers to present
+  // "Authorization: Bearer <token>" when hitting /mcp or /sse.
+  // Leave unset (default) for localhost-only deployments.
+  const mcpSecret = process.env.MCP_SECRET;
+  function requireMcpSecret(req: express.Request, res: express.Response, next: express.NextFunction) {
+    if (!mcpSecret) return next(); // gate disabled
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    if (token !== mcpSecret) {
+      res.status(401).json({ error: 'unauthorized', message: 'Valid MCP_SECRET bearer token required.' });
+      return;
+    }
+    next();
+  }
+
   // ── OAuth Routes ─────────────────────────────────────────
 
   // Redirect the browser to GHL's authorization page
@@ -226,20 +278,33 @@ async function main() {
       return;
     }
 
-    const authUrl = credentialManager.getAuthorizationUrl();
+    const state = generateOAuthState();
+    const authUrl = credentialManager.getAuthorizationUrl(state);
     res.redirect(authUrl);
   });
 
   // GHL redirects back here with ?code=...
   app.get('/auth/callback', async (req, res) => {
-    const { code, error } = req.query as Record<string, string>;
+    const { code, state, error } = req.query as Record<string, string>;
+
+    // Validate CSRF state token before doing anything with the code
+    if (!consumeOAuthState(state)) {
+      log('warn', 'OAuth callback: invalid or missing state parameter');
+      res.status(400).send(authPage('Invalid Request', `
+        <span class="badge err">Invalid Request</span>
+        <h1>Invalid or expired authorization request</h1>
+        <p>The state parameter is missing or expired. Please start the authorization flow again.</p>
+        <a href="/auth" class="btn">Start Over</a>
+      `));
+      return;
+    }
 
     if (error) {
       log('warn', 'OAuth error from GHL', { error });
       res.status(400).send(authPage('Authorization Failed', `
         <span class="badge err">Authorization Failed</span>
         <h1>GHL returned an error</h1>
-        <p><code>${error}</code></p>
+        <p><code>${escapeHtml(error)}</code></p>
         <a href="/auth" class="btn">Try Again</a>
       `));
       return;
@@ -282,7 +347,7 @@ async function main() {
       res.status(500).send(authPage('Error', `
         <span class="badge err">Error</span>
         <h1>Something went wrong</h1>
-        <p>${err.message}</p>
+        <p>${escapeHtml(err.message)}</p>
         <a href="/auth" class="btn">Try Again</a>
       `));
     }
@@ -309,7 +374,7 @@ async function main() {
 
   // ── MCP Streamable HTTP Endpoint ─────────────────────────
 
-  app.all('/mcp', async (req, res) => {
+  app.all('/mcp', requireMcpSecret, async (req, res) => {
     if (!stack) {
       const isAuthPending = !credentialManager.isAuthenticated();
       res.status(401).json({
@@ -347,10 +412,7 @@ async function main() {
         { capabilities: { tools: {} } },
       );
 
-      const sseRegistry = new ToolRegistry(
-        // SSE registry needs the same client — registry.getClient() if it exists, else re-use
-        (registry as any).ghlClient,
-      );
+      const sseRegistry = new ToolRegistry(registry.ghlClient);
       sseRegistry.registerAll(sseServer);
 
       const sseRegistered = new Set(sseRegistry.getAllToolNames());
@@ -386,8 +448,8 @@ async function main() {
     }
   };
 
-  app.get('/sse', handleSSE);
-  app.post('/sse', handleSSE);
+  app.get('/sse', requireMcpSecret, handleSSE);
+  app.post('/sse', requireMcpSecret, handleSSE);
 
   // ── REST Info Endpoints ──────────────────────────────────
 

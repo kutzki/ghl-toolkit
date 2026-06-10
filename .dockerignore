@@ -1,0 +1,15 @@
+node_modules
+src/ui/react-app/node_modules
+dist
+.env
+.env.*
+.ghl-tokens.json
+.git
+.gitignore
+*.log
+coverage
+.nyc_output
+tmp
+temp
+.vscode
+.idea

@@ -8,6 +8,9 @@
   },
   "files": [
     "dist/",
+    "setup.js",
+    ".env.example",
+    "integrations/",
     "README.md",
     "package.json"
   ],

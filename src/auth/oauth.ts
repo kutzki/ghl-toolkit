@@ -48,12 +48,13 @@ export interface GHLTokens {
   scopes?: string;
 }
 
-export function buildAuthorizationUrl(clientId: string, redirectUri: string): string {
+export function buildAuthorizationUrl(clientId: string, redirectUri: string, state: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     redirect_uri: redirectUri,
     client_id: clientId,
     scope: FULL_SCOPES,
+    state,
   });
   return `${GHL_AUTH_BASE}/oauth/chooselocation?${params}`;
 }

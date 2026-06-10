@@ -87,9 +87,9 @@ export class CredentialManager {
     return process.env.GHL_LOCATION_ID || this.tokens?.locationId || '';
   }
 
-  /** Full URL for the GHL OAuth authorization page */
-  getAuthorizationUrl(): string {
-    return buildAuthorizationUrl(this.clientId, this.redirectUri);
+  /** Full URL for the GHL OAuth authorization page, bound to a specific state token */
+  getAuthorizationUrl(state: string): string {
+    return buildAuthorizationUrl(this.clientId, this.redirectUri, state);
   }
 
   /** Exchange an authorization code for tokens and persist them */

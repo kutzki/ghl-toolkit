@@ -10,7 +10,6 @@
 
 import { randomUUID } from 'crypto';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -95,45 +94,34 @@ export class WorkflowBuilderClient {
    * and falls back to process.env.
    */
   static fromEnv(): WorkflowBuilderClient {
-    // Try loading from the skill's .env file
-    const skillEnvPath = resolve(
-      process.env.HOME || '/Users/jakeshore',
-      '.clawdbot/workspace/skills/ghl-workflow-builder/.env'
-    );
+    const get = (key: string): string => process.env[key] || '';
 
-    const envVars: Record<string, string> = {};
+    const locationId = get('GHL_LOCATION_ID');
+    const userId = get('GHL_USER_ID');
 
-    // Load skill env file
-    if (existsSync(skillEnvPath)) {
-      for (const line of readFileSync(skillEnvPath, 'utf8').split('\n')) {
-        const eqIdx = line.indexOf('=');
-        if (eqIdx > 0) {
-          const key = line.slice(0, eqIdx).trim();
-          const val = line.slice(eqIdx + 1).trim();
-          if (key && val) envVars[key] = val;
-        }
-      }
+    if (!locationId) {
+      throw new Error('GHL_LOCATION_ID is required for workflow builder tools. Set it in your .env file.');
     }
-
-    // Process.env overrides
-    const get = (key: string): string => process.env[key] || envVars[key] || '';
+    if (!userId) {
+      throw new Error('GHL_USER_ID is required for workflow builder tools. Set it in your .env file.');
+    }
 
     const config: WorkflowBuilderConfig = {
       apiKey: get('GHL_API_KEY'),
       firebaseApiKey: get('GHL_FIREBASE_API_KEY'),
       firebaseRefreshToken: get('GHL_FIREBASE_REFRESH_TOKEN'),
       refreshToken: get('GHL_REFRESH_TOKEN') || get('GHL_AUTH_REFRESH_TOKEN'),
-      locationId: get('GHL_LOCATION_ID') || 'DZEpRd43MxUJKdtrev9t',
-      userId: get('GHL_USER_ID') || '8Uy3ls0B517vLO2tSNva',
+      locationId,
+      userId,
       companyId: get('GHL_COMPANY_ID'),
-      envFilePath: skillEnvPath,
+      envFilePath: process.env.TOKEN_STORE_PATH || '',
     };
 
     // v2 JWT refresh is preferred; fall back to Firebase
     if (!config.refreshToken && (!config.firebaseApiKey || !config.firebaseRefreshToken)) {
       throw new Error(
-        'Workflow builder requires GHL_REFRESH_TOKEN (v2 JWT) or GHL_FIREBASE_API_KEY + GHL_FIREBASE_REFRESH_TOKEN. ' +
-        `Checked: ${skillEnvPath} and process.env`
+        'Workflow builder requires GHL_REFRESH_TOKEN (v2 JWT) or ' +
+        'GHL_FIREBASE_API_KEY + GHL_FIREBASE_REFRESH_TOKEN in your environment.'
       );
     }
 

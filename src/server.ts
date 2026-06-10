@@ -1,6 +1,7 @@
+#!/usr/bin/env node
 /**
  * GoHighLevel MCP Server — Stdio Transport
- * 
+ *
  * Entry point for Claude Desktop and other stdio-based MCP clients.
  * Uses ToolRegistry for automatic tool discovery and routing,
  * keeping it in sync with the HTTP server (main.ts).
