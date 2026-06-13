@@ -546,6 +546,10 @@ async function main() {
 
 process.on('SIGINT', () => { log('info', 'Shutting down (SIGINT)'); process.exit(0); });
 process.on('SIGTERM', () => { log('info', 'Shutting down (SIGTERM)'); process.exit(0); });
+process.on('unhandledRejection', (reason) => {
+  log('error', 'Unhandled rejection', { reason: String(reason) });
+  process.exit(1);
+});
 
 main().catch((err) => {
   log('error', 'Fatal error', { error: err.message, stack: err.stack });

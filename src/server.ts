@@ -20,6 +20,7 @@ import {
 import * as dotenv from 'dotenv';
 
 import { GHLApiClient } from './clients/ghl-api-client.js';
+import { EnhancedGHLClient } from './enhanced-ghl-client.js';
 import { ToolRegistry } from './tool-registry.js';
 import { MCPAppsManager } from './apps/index.js';
 import { GHLConfig } from './types/ghl-types.js';
@@ -108,7 +109,7 @@ class GHLMCPServer {
     process.stderr.write(`[GHL MCP] Base URL: ${config.baseUrl}\n`);
     process.stderr.write(`[GHL MCP] Location ID: ${config.locationId}\n`);
 
-    return new GHLApiClient(config, () => credManager.getAccessToken());
+    return new EnhancedGHLClient(config, () => credManager.getAccessToken());
   }
 
   /**
@@ -280,6 +281,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 }
+
+process.on('unhandledRejection', (reason) => {
+  process.stderr.write(`[GHL MCP] Unhandled rejection: ${reason}\n`);
+  process.exit(1);
+});
 
 // Start the server
 main().catch((error) => {

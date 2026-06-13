@@ -1588,7 +1588,7 @@ export class GHLApiClient {
           response = await this.axiosInstance.patch(path, body);
           break;
         case 'DELETE':
-          response = await this.axiosInstance.delete(path);
+          response = await this.axiosInstance.delete(path, body ? { data: body } : undefined);
           break;
       }
       return this.wrapResponse(response.data);
@@ -2912,8 +2912,8 @@ export class GHLApiClient {
 
       const recordingResponse: GHLMessageRecordingResponse = {
         audioData: response.data,
-        contentType: response.headers['content-type'] || 'audio/x-wav',
-        contentDisposition: response.headers['content-disposition'] || 'attachment; filename=audio.wav'
+        contentType: String(response.headers['content-type'] || 'audio/x-wav'),
+        contentDisposition: String(response.headers['content-disposition'] || 'attachment; filename=audio.wav')
       };
 
       return this.wrapResponse(recordingResponse);
