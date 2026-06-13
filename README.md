@@ -12,38 +12,57 @@ This server gives any compatible AI agent direct, natural-language access to you
 
 ## ✅ Compatible AI Platforms
 
-| Platform | Transport | Config Location |
+| Platform | Transport | Config File |
 |---|---|---|
-| **Claude Desktop** | `stdio` | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| **ChatGPT Codex CLI** | `stdio` | `~/.codex/config.json` → `mcpServers` |
-| **Google Gemini CLI** | `stdio` | `~/.config/gemini/settings.json` → `mcpServers` |
-| **Any MCP HTTP Client** | `HTTP/SSE` | Point to your deployed server URL |
+| **Claude Desktop** | `stdio` | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
+| **ChatGPT Codex CLI** | `stdio` | `~/.codex/config.toml` |
+| **Google Gemini CLI** | `stdio` | `~/.gemini/settings.json` |
+| **Any MCP HTTP Client** | `HTTP/SSE` | Point to `http://localhost:8000/mcp` |
 
-All four share the same MCP tool schema — you configure once and all platforms call the same tools.
+All platforms share the same MCP tool schema.
 
 ---
 
-## 🚀 Quick Start (Local — No Hosting Required)
-
-### 1. Clone & Install
+## 🚀 Quick Start (3 commands)
 
 ```bash
 git clone https://github.com/kutzki/ghl-toolkit.git
 cd ghl-toolkit
 npm install
+npm run setup
 ```
 
-> **Note:** The build step also installs dependencies for the React dashboard sub-package automatically.
+`npm run setup` handles everything interactively:
+- Asks whether you want a **Private Integration Token** or **OAuth 2.0** login
+- Writes your `.env` file
+- Builds the server (including the React dashboard)
+- Detects which AI apps are installed and injects the config automatically
+- Restart your AI app when prompted — done
 
-### 2. Set Up Your GHL Credentials
+**No cloud account, no monthly bill, no manual config editing required.**
 
-**Option A — Private Integration Token (simplest):**
+---
+
+## Manual Setup (if you prefer)
+
+<details>
+<summary>Click to expand manual steps</summary>
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure credentials
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in:
+**Option A — Private Integration Token (simplest):**
+
+Open `.env` and set:
 
 ```bash
 GHL_API_KEY=your_private_integrations_api_key
@@ -51,22 +70,19 @@ GHL_LOCATION_ID=your_location_id
 GHL_BASE_URL=https://services.leadconnectorhq.com
 ```
 
-> **Where to get these:**
-> 1. Log in to GoHighLevel
-> 2. Go to **Settings → Integrations → Private Integrations**
-> 3. Create a new integration, select all required scopes, and copy the generated API key
-> 4. Copy your **Location ID** from Settings → Company → Locations
+> Get these from GHL → **Settings → Integrations → Private Integrations**.
+> Copy the API key and your Location ID from Settings → Company → Locations.
 
 **Option B — OAuth 2.0 (browser login, works for agency + sub-accounts):**
 
+Set `GHL_CLIENT_ID` and `GHL_CLIENT_SECRET` in `.env` (from your GHL Marketplace App), then:
+
 ```bash
-cp .env.example .env
-# Fill in GHL_CLIENT_ID and GHL_CLIENT_SECRET from your Marketplace App
 npm run build && npm start
-# Then open http://localhost:8000/auth in your browser
+# Open http://localhost:8000/auth in your browser
 ```
 
-Your tokens are saved automatically to `.ghl-tokens.json` (gitignored). The server refreshes them before expiry — no re-login required.
+Tokens are saved to `.ghl-tokens.json` (gitignored) and auto-refreshed.
 
 ### 3. Build
 
@@ -74,9 +90,9 @@ Your tokens are saved automatically to `.ghl-tokens.json` (gitignored). The serv
 npm run build
 ```
 
-### 4. Connect to Your AI App
+### 4. Add to your AI app config
 
-Add the following block to your chosen app's config file. The path to `server.js` should be the **absolute path** on your machine.
+For **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -85,7 +101,7 @@ Add the following block to your chosen app's config file. The path to `server.js
       "command": "node",
       "args": ["/absolute/path/to/ghl-toolkit/dist/server.js"],
       "env": {
-        "GHL_API_KEY": "your_private_integrations_api_key",
+        "GHL_API_KEY": "your_key",
         "GHL_BASE_URL": "https://services.leadconnectorhq.com",
         "GHL_LOCATION_ID": "your_location_id"
       }
@@ -94,7 +110,40 @@ Add the following block to your chosen app's config file. The path to `server.js
 }
 ```
 
-Restart your AI app after saving the config. That's it — no cloud, no monthly bill.
+For **Codex CLI** (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.aio-ghl-mcp]
+command = "node"
+args = ["/absolute/path/to/ghl-toolkit/dist/server.js"]
+
+[mcp_servers.aio-ghl-mcp.env]
+GHL_API_KEY = "your_key"
+GHL_LOCATION_ID = "your_location_id"
+GHL_BASE_URL = "https://services.leadconnectorhq.com"
+```
+
+For **Gemini CLI** (`~/.gemini/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "aio-ghl-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/to/ghl-toolkit/dist/server.js"],
+      "env": {
+        "GHL_API_KEY": "your_key",
+        "GHL_LOCATION_ID": "your_location_id",
+        "GHL_BASE_URL": "https://services.leadconnectorhq.com"
+      }
+    }
+  }
+}
+```
+
+Restart your AI app after saving.
+
+</details>
 
 ---
 
