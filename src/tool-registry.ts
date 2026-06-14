@@ -56,6 +56,7 @@ import { VoiceAITools } from './tools/voice-ai-tools.js';
 import { ProposalsTools } from './tools/proposals-tools.js';
 import { CustomMenusTools } from './tools/custom-menus-tools.js';
 import { MarketplaceTools } from './tools/marketplace-tools.js';
+import { OAuthTools } from './tools/oauth-tools.js';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -125,15 +126,34 @@ function inferAnnotations(toolName: string, meta?: any): ToolAnnotations {
 }
 
 /**
- * Convert JSON Schema inputSchema to a Zod passthrough object
- * We use z.object({}).passthrough() to accept any args since the
- * original schemas are JSON Schema, not Zod. The MCP SDK will
- * still send the original JSON Schema to clients.
+ * Build a Zod schema from a JSON Schema inputSchema so that MCP clients
+ * receive real parameter names and types via ListTools over HTTP transports.
+ * Types are kept loose (z.any()) to avoid rejecting valid inputs.
  */
-function makeZodSchema(_jsonSchema: any): z.ZodTypeAny {
-  // Use a catch-all that accepts any object
-  // The actual validation happens in the tool handler
-  return z.object({}).passthrough();
+function makeZodSchema(jsonSchema: any): z.ZodTypeAny {
+  const props = jsonSchema?.properties;
+  if (!props || typeof props !== 'object') return z.object({}).passthrough();
+
+  const required: string[] = jsonSchema.required || [];
+  const shape: Record<string, z.ZodTypeAny> = {};
+
+  for (const [key, def] of Object.entries(props as Record<string, any>)) {
+    const desc = def?.description || '';
+    let field: z.ZodTypeAny;
+    switch (def?.type) {
+      case 'string':  field = z.string(); break;
+      case 'number':
+      case 'integer': field = z.number(); break;
+      case 'boolean': field = z.boolean(); break;
+      case 'array':   field = z.array(z.any()); break;
+      case 'object':  field = z.record(z.string(), z.any()); break;
+      default:        field = z.any(); break;
+    }
+    if (desc) field = field.describe(desc);
+    shape[key] = required.includes(key) ? field : field.optional();
+  }
+
+  return z.object(shape);
 }
 
 // ─── Tool Registry ──────────────────────────────────────────
@@ -142,8 +162,10 @@ export class ToolRegistry {
   private modules: ToolModule[] = [];
   private toolToModule = new Map<string, ToolModule>();
   private allToolDefs: Tool[] = [];
+  readonly ghlClient: GHLApiClient;
 
   constructor(ghlClient: GHLApiClient) {
+    this.ghlClient = ghlClient;
     this.initModules(ghlClient);
   }
 
@@ -195,6 +217,7 @@ export class ToolRegistry {
     const proposalsTools = new ProposalsTools(ghl);
     const customMenusTools = new CustomMenusTools(ghl);
     const marketplaceTools = new MarketplaceTools(ghl);
+    const oauthTools = new OAuthTools(ghl);
 
     // Register legacy modules (executeTool pattern)
     this.addModule('contact', contactTools, 'getToolDefinitions', 'executeTool');
@@ -243,6 +266,7 @@ export class ToolRegistry {
     this.addModule('proposals', proposalsTools, 'getToolDefinitions', 'handleToolCall');
     this.addModule('customMenus', customMenusTools, 'getToolDefinitions', 'handleToolCall');
     this.addModule('marketplace', marketplaceTools, 'getToolDefinitions', 'handleToolCall');
+    this.addModule('oauth', oauthTools, 'getToolDefinitions', 'handleToolCall');
 
     // Workflow Builder — internal API with Firebase auth (no GHL API client dependency)
     const workflowBuilderTools = new WorkflowBuilderTools();
@@ -294,6 +318,7 @@ export class ToolRegistry {
             title: annotations.title,
             description: tool.description || '',
             annotations,
+            inputSchema: makeZodSchema((tool as any).inputSchema) as any,
             _meta: meta,
           },
           async (args: any) => {

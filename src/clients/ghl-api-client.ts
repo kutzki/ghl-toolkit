@@ -391,9 +391,9 @@ export class GHLApiClient {
   private axiosInstance: AxiosInstance;
   private config: GHLConfig;
 
-  constructor(config: GHLConfig) {
+  constructor(config: GHLConfig, getToken?: () => Promise<string>) {
     this.config = config;
-    
+
     // Create axios instance with base configuration
     this.axiosInstance = axios.create({
       baseURL: config.baseUrl,
@@ -405,6 +405,15 @@ export class GHLApiClient {
       },
       timeout: 30000 // 30 second timeout
     });
+
+    // Dynamic token refresh: update Authorization header before each request
+    if (getToken) {
+      this.axiosInstance.interceptors.request.use(async (reqConfig) => {
+        const token = await getToken();
+        reqConfig.headers.Authorization = `Bearer ${token}`;
+        return reqConfig;
+      });
+    }
 
     // Add request interceptor for logging
     this.axiosInstance.interceptors.request.use(
@@ -1579,7 +1588,7 @@ export class GHLApiClient {
           response = await this.axiosInstance.patch(path, body);
           break;
         case 'DELETE':
-          response = await this.axiosInstance.delete(path);
+          response = await this.axiosInstance.delete(path, body ? { data: body } : undefined);
           break;
       }
       return this.wrapResponse(response.data);
@@ -2903,8 +2912,8 @@ export class GHLApiClient {
 
       const recordingResponse: GHLMessageRecordingResponse = {
         audioData: response.data,
-        contentType: response.headers['content-type'] || 'audio/x-wav',
-        contentDisposition: response.headers['content-disposition'] || 'attachment; filename=audio.wav'
+        contentType: String(response.headers['content-type'] || 'audio/x-wav'),
+        contentDisposition: String(response.headers['content-disposition'] || 'attachment; filename=audio.wav')
       };
 
       return this.wrapResponse(recordingResponse);
